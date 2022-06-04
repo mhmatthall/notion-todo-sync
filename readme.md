@@ -1,5 +1,5 @@
 # notion-todo-sync
-Currently a very niche Python script for synchronising page properties for pages in my [Notion](https://notion.so/) to-do list, because Notion does not currently allow sub-grouping kanban boards by roll-ups (the bastards).
+Currently a very niche Python script for synchronising page properties for pages in my [Notion](https://notion.so/) to-do list, because Notion does not currently allow sub-grouping kanban boards by roll-ups (the bastards). I should make it clear that this definitely isn't reusable right now, but I thought it might be helpful for peeps to look at if they want to steal this and do similar.
 
 ## Files
 - `sandbox.ipynb` contains a sort of verbose version of the script that helps (me) understand what's going on
@@ -21,6 +21,7 @@ See included `env.yml` file for setting up the environment
 
 ## To-do
 - Actually make reusable
+- Add any kind of validation, error handling, exceptions, etc.
 - Allow custom property specification based on [JSONpath](https://restfulapi.net/json-jsonpath/) strings
 
 ## If you have any issues
