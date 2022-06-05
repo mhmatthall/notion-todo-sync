@@ -91,7 +91,7 @@ def main():
         # If the page has a relation
         if page.get('properties').get('Project').get('relation'):
             project_id = page.get('properties').get('Project').get('relation')[0].get('id')
-            current_origin_name = page.get('properties').get('Origin').get('select')
+            current_origin_name = page.get('properties').get('Origin').get('select').get('name')
 
             # Fetch the correct origin name
             origin_name = parse_project_origin_name(project_id)
