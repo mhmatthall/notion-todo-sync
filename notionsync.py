@@ -1,4 +1,5 @@
 import requests as req
+from time import sleep
 # For secrets:
 from dotenv import load_dotenv
 import os
@@ -104,7 +105,7 @@ def main():
 
             if page.get('properties').get('Origin').get('select'):
                 # Try and parse the JSON for the name
-            current_origin_name = page.get('properties').get('Origin').get('select').get('name')
+                current_origin_name = page.get('properties').get('Origin').get('select').get('name')
             else:
                 # If the JSON doesn't exist to parse, then there's no current origin name
                 current_origin_name = None
@@ -122,5 +123,11 @@ if __name__ == '__main__':
     # Import environment vars from ./.env
     load_dotenv()
 
-    # Less go baybee
-    main()
+    while True:
+        # Less go baybee
+        main()
+
+        # I'm using sleep rather than cron because:
+        #   - this is run in a Docker where it's the only foreground task
+        #   - running the task 3 times a minute would require 3 cron instances since it only has minute-level granularity
+        sleep(10)
