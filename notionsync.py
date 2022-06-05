@@ -13,13 +13,17 @@ def parse_project_origin_name(project_id):
         str: The plaintext name of the page's correct Origin property
     """
     # Fetch project page from Notion and extract only its 'Origin' property's page ID
-    origin_id = req.get(
+    r = req.get(
         f'https://api.notion.com/v1/pages/{project_id}',
         headers={
             'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
             'Notion-Version': '2022-02-22'
         }
-    ).json().get('properties').get('Origin').get('relation')[0].get('id')
+    )
+
+    print(f"parsing of origin name from page '{project_id}' returned HTTP {r.status_code}")
+    
+    origin_id = r.json().get('properties').get('Origin').get('relation')[0].get('id')
 
     # Fetch origin page from Notion and extract only the page's plaintext name
     origin_name = req.get(
@@ -40,7 +44,7 @@ def set_new_origin_name(page_id, origin_name):
         page_id (str):  The ID of the target page
         origin_name (str): The new plaintext Origin name
     """
-    req.patch(
+    r = req.patch(
         f'https://api.notion.com/v1/pages/{page_id}',
         headers={
             'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
@@ -58,6 +62,8 @@ def set_new_origin_name(page_id, origin_name):
         }
     )
 
+    print(f"pushing of new origin name '{origin_name}' to page '{page_id}' returned HTTP {r.status_code}")
+
 
 def fetch_db(db_id):
     """Fetch a Notion database
@@ -65,7 +71,7 @@ def fetch_db(db_id):
     Returns:
         dict: The returned database as a JSON-serialisable dict (removes HTTP request guff)
     """
-    return req.post(
+    r = req.post(
         f'https://api.notion.com/v1/databases/{db_id}/query',
         headers={
             'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
@@ -80,7 +86,11 @@ def fetch_db(db_id):
                 }
             }
         }
-    ).json()['results']
+    )
+
+    print(f"fetching of database '{db_id}' returned HTTP {r.status_code}")
+
+    return r.json()['results']
 
 
 def main():
