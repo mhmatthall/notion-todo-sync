@@ -37,7 +37,7 @@ def parse_project_origin_name(project_id):
     return origin_name
 
 
-def set_new_origin_name(page_id, origin_name):
+def push_origin_name(page_id, origin_name):
     """Update the Origin property of a page on Notion
 
     Args:
@@ -109,7 +109,7 @@ def main():
             # If the page's plaintext origin name doesn't match the project's plaintext origin name
             # OR the page has no plaintext origin name
             if (current_origin_name != origin_name or not current_origin_name):
-                set_new_origin_name(page.get('id'), origin_name)
+                push_origin_name(page.get('id'), origin_name)
 
 
 if __name__ == '__main__':
