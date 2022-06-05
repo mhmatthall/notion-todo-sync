@@ -101,7 +101,13 @@ def main():
         # If the page has a relation
         if page.get('properties').get('Project').get('relation'):
             project_id = page.get('properties').get('Project').get('relation')[0].get('id')
+
+            if page.get('properties').get('Origin').get('select'):
+                # Try and parse the JSON for the name
             current_origin_name = page.get('properties').get('Origin').get('select').get('name')
+            else:
+                # If the JSON doesn't exist to parse, then there's no current origin name
+                current_origin_name = None
 
             # Fetch the correct origin name
             origin_name = parse_project_origin_name(project_id)
