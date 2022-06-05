@@ -14,14 +14,19 @@ Currently a very niche Python script for synchronising page properties for pages
   - `NOTION_INTEGRATION_API_KEY=`\<your Notion integration API key>
   - `NOTION_TARGET_DB_ID=`\<the ID of the database being synchronised>
 
-## Requirements
-See included `env.yml` file for setting up the environment
+## Dependencies
+- Python
+  - tested on Python 3.10.4
+  - imports: `requests`, `time`, `dotenv`, `os`
+- Bash
+  - ~~`cron`~~ — I'm using Python's `time.sleep()` because cron just wasn't suited to my use case
 
 ---
 
 ## To-do
 - Actually make reusable
 - Add any kind of validation, error handling, exceptions, etc.
+- Containerise
 - Allow custom property specification based on [JSONpath](https://restfulapi.net/json-jsonpath/) strings
 
 ## If you have any issues
