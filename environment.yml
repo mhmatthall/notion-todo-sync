@@ -1,0 +1,7 @@
+name: notionsync
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - requests
+    - python-dotenv

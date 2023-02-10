@@ -1,57 +1,72 @@
+import os
+import logging
 import requests as req
 from time import sleep
-# For secrets:
 from dotenv import load_dotenv
-import os
 
-def parse_project_origin_name(project_id):
-    """ Request a Project page, get the ID of its Origin property, then request that and parse its plaintext name property
+# ---------------------------- CONFIG ----------------------------
+
+# Setup logger
+logging.basicConfig(format='%(asctime)s === %(levelname)s === %(message)s', level=logging.INFO)
+
+# Import secrets from .env
+load_dotenv()
+
+HTTP_HEADER = {
+    'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
+    'Notion-Version': '2022-02-22',
+    'Content-Type': 'application/json'
+}
+
+# ---------------------------- FUNCTIONS ----------------------------
+
+def get_origin_name(project_id):
+    """ Get the name of the Origin for a given Project
 
     Args:
-        project_id (str): The ID of the target Project page
+        project_id (str): The page ID of the Project
 
     Returns:
-        str: The plaintext name of the page's correct Origin property
+        str: The plaintext name of the Origin for the Project
     """
-    # Fetch project page from Notion and extract only its 'Origin' property's page ID
-    r = req.get(
+    # Fetch Project page
+    r_project = req.get(
         f'https://api.notion.com/v1/pages/{project_id}',
-        headers={
-            'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
-            'Notion-Version': '2022-02-22'
-        }
+        headers=HTTP_HEADER
     )
 
-    print(f"parsing of origin name from page '{project_id}' returned HTTP {r.status_code}")
+    if (r_project.status_code == 200):
+        logging.debug(f"FETCH successful of Project {project_id}")
+    else:
+        logging.error(f"FETCH unsuccessful of Project {project_id} (returned {r_project.status_code})")
     
-    origin_id = r.json().get('properties').get('Origin').get('relation')[0].get('id')
+    # Extract the ID of the given Project's Origin page
+    origin_id = r_project.json().get('properties').get('Origin').get('relation')[0].get('id')
 
-    # Fetch origin page from Notion and extract only the page's plaintext name
-    origin_name = req.get(
+    # Fetch Origin page
+    r_origin = req.get(
         f'https://api.notion.com/v1/pages/{origin_id}',
-        headers={
-            'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
-            'Notion-Version': '2022-02-22'
-        }
-    ).json().get('properties').get('Name').get('title')[0].get('plain_text')
+        headers=HTTP_HEADER
+    )
 
-    return origin_name
+    if (r_origin.status_code == 200):
+        logging.debug(f"FETCH successful of Origin {origin_id}")
+    else:
+        logging.error(f"FETCH unsuccessful of Project {origin_id} (returned {r_origin.status_code})")
+    
+    # Extract the plaintext name of the Origin
+    return r_origin.json().get('properties').get('Name').get('title')[0].get('plain_text')
 
-
-def push_origin_name(page_id, origin_name):
-    """Update the Origin property of a page on Notion
+def update_origin_name(page_id, origin_name):
+    """Update the Origin property of a Project
 
     Args:
-        page_id (str):  The ID of the target page
-        origin_name (str): The new plaintext Origin name
+        page_id (str):  The ID of the Project
+        origin_name (str): The new Origin name value in plaintext
     """
     r = req.patch(
         f'https://api.notion.com/v1/pages/{page_id}',
-        headers={
-            'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
-            'Notion-Version': '2022-02-22'
-        },
-        # Payload
+        headers=HTTP_HEADER,
         json={
             "properties": {
                 "Origin": {
@@ -63,8 +78,10 @@ def push_origin_name(page_id, origin_name):
         }
     )
 
-    print(f"pushing of new origin name '{origin_name}' to page '{page_id}' returned HTTP {r.status_code}")
-
+    if (r.status_code == 200):
+        logging.info(f"PATCH successful to page {page_id} (set Origin to '{origin_name}')")
+    else:
+        logging.error(f"PATCH unsuccessful for page {page_id} (returned {r.status_code} when setting Origin to '{origin_name}')")
 
 def fetch_db(db_id):
     """Fetch a Notion database
@@ -74,10 +91,7 @@ def fetch_db(db_id):
     """
     r = req.post(
         f'https://api.notion.com/v1/databases/{db_id}/query',
-        headers={
-            'Authorization': f"Bearer {os.environ.get('NOTION_INTEGRATION_API_KEY')}",
-            'Notion-Version': '2022-02-22'
-        },
+        headers=HTTP_HEADER,
         # Notion filter payload; stops us getting 'Completed' tasks which don't appear in the todo list
         json={
             "filter": {
@@ -89,45 +103,49 @@ def fetch_db(db_id):
         }
     )
 
-    print(f"fetching of database '{db_id}' returned HTTP {r.status_code}")
+    if (r.status_code == 200):
+        logging.debug(f"FETCH successful of database {db_id}")
+    else:
+        logging.error(f"FETCH unsuccessful of database {db_id} (returned {r.status_code})")
 
     return r.json()['results']
 
-
 def main():
-    # Fetch the to-do list database from Notion
-    db = fetch_db(os.environ.get('NOTION_TARGET_DB_ID'))
+    # Fetch the to-do database
+    db = fetch_db(
+        os.environ.get('NOTION_TARGET_DB_ID')
+    )
 
-    for page in db:
-        # If the page has a relation
-        if page.get('properties').get('Project').get('relation'):
-            project_id = page.get('properties').get('Project').get('relation')[0].get('id')
+    # Iterate through every to-do item
+    for item in db:
+        project = item.get('properties').get('Project').get('relation')
 
-            if page.get('properties').get('Origin').get('select'):
-                # Try and parse the JSON for the name
-                current_origin_name = page.get('properties').get('Origin').get('select').get('name')
+        # Only if the item has a Project property
+        if project:
+            origin = item.get('properties').get('Origin').get('select')
+
+            if origin:                
+                # Item has an Origin property
+                if (origin.get('name') != get_origin_name(project[0].get('id'))):
+                    # Update only if out-of-date
+                    update_origin_name(item.get('id'), get_origin_name(project[0].get('id')))
             else:
-                # If the JSON doesn't exist to parse, then there's no current origin name
-                current_origin_name = None
-
-            # Fetch the correct origin name
-            origin_name = parse_project_origin_name(project_id)
-
-            # If the page's plaintext origin name doesn't match the project's plaintext origin name
-            # OR the page has no plaintext origin name
-            if (current_origin_name != origin_name or not current_origin_name):
-                push_origin_name(page.get('id'), origin_name)
-
+                # Item does not have an Origin property
+                update_origin_name(item.get('id'), get_origin_name(project[0].get('id')))
 
 if __name__ == '__main__':
-    # Import environment vars from ./.env
-    load_dotenv()
+    logging.info('♥ notionsync by mhmatthall')
+
+    # Print imported variables
+    logging.info(f"targeting notion db {os.environ.get('NOTION_TARGET_DB_ID')}")
+    logging.debug(f"using api key {os.environ.get('NOTION_INTEGRATION_API_KEY')}")
 
     while True:
-        # Less go baybee
-        main()
-
-        # I'm using sleep rather than cron because:
-        #   - this is run in a Docker where it's the only foreground task
-        #   - running the task 3 times a minute would require 3 cron instances since it only has minute-level granularity
-        sleep(10)
+        # run every 30 seconds
+        try:
+            # Less go baybee
+            main()
+        except:
+            logging.exception('Fatal error:')
+        
+        sleep(30)
