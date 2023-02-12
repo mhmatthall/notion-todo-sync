@@ -9,7 +9,6 @@ I want to be able to group my to-do items according to the general Origin that t
 ## Files
 - `notionsync.py` is the script itself
 - `init.sh` is a shell script used to repeatedly execute the Python script at a desired interval
-- `sandbox.ipynb` is a Jupyter notebook with my original fiddling to get the script working
 
 ## Setup
 - [Make a new Notion integration](https://notion.so/my-integrations) and copy your API key.
