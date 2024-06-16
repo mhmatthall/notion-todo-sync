@@ -24,7 +24,7 @@ def get_origin_name(project_id):
     """ Get the name of the Origin for a given Project
 
     Args:
-        project_id (str): The page ID of the Project
+        project_id (str): The page UID of the Project
 
     Returns:
         str: The plaintext name of the Origin for the Project
@@ -35,12 +35,10 @@ def get_origin_name(project_id):
         headers=HTTP_HEADER
     )
 
-    if (r_project.status_code == 200):
-        logging.debug(f"FETCH successful of Project {project_id}")
-    else:
-        logging.error(f"FETCH unsuccessful of Project {project_id} (returned {r_project.status_code})")
-    
-    # Extract the ID of the given Project's Origin page
+    # If HTTP error, raise exception
+    r_project.raise_for_status()
+
+    # Extract the UID of the given Project's Origin page
     origin_id = r_project.json().get('properties').get('Origin').get('relation')[0].get('id')
 
     # Fetch Origin page
@@ -49,19 +47,17 @@ def get_origin_name(project_id):
         headers=HTTP_HEADER
     )
 
-    if (r_origin.status_code == 200):
-        logging.debug(f"FETCH successful of Origin {origin_id}")
-    else:
-        logging.error(f"FETCH unsuccessful of Project {origin_id} (returned {r_origin.status_code})")
+    # If HTTP error, raise exception
+    r_origin.raise_for_status()
     
-    # Extract the plaintext name of the Origin
+    # Return the plaintext name of the Origin
     return r_origin.json().get('properties').get('Name').get('title')[0].get('plain_text')
 
 def update_origin_name(page_id, origin_name):
     """Update the Origin property of a Project
 
     Args:
-        page_id (str):  The ID of the Project
+        page_id (str):  The UID of the Project
         origin_name (str): The new Origin name value in plaintext
     """
     r = req.patch(
@@ -77,11 +73,9 @@ def update_origin_name(page_id, origin_name):
             }
         }
     )
-
-    if (r.status_code == 200):
-        logging.info(f"PATCH successful to page {page_id} (set Origin to '{origin_name}')")
-    else:
-        logging.error(f"PATCH unsuccessful for page {page_id} (returned {r.status_code} when setting Origin to '{origin_name}')")
+    
+    # If HTTP error, raise exception
+    r.raise_for_status()
 
 def fetch_db(db_id):
     """Fetch a Notion database
@@ -103,49 +97,65 @@ def fetch_db(db_id):
         }
     )
 
-    if (r.status_code == 200):
-        logging.debug(f"FETCH successful of database {db_id}")
-    else:
-        logging.error(f"FETCH unsuccessful of database {db_id} (returned {r.status_code})")
+    # If HTTP error, raise exception
+    r.raise_for_status()
 
     return r.json()['results']
 
 def main():
     # Fetch the to-do database
-    db = fetch_db(
-        os.environ.get('NOTION_TARGET_DB_ID')
-    )
+    try:
+        db = fetch_db(os.environ.get('NOTION_TARGET_DB_ID'))
+        logging.debug(f"FETCH successful of database {os.environ.get('NOTION_TARGET_DB_ID')}")
+    
+    except req.HTTPError as e:
+        logging.error(f"FETCH unsuccessful of database {os.environ.get('NOTION_TARGET_DB_ID')} (returned {e.response.status_code})")
+        return
 
     # Iterate through every to-do item
     for item in db:
+        # Read the item's Project property
         project = item.get('properties').get('Project').get('relation')
 
-        # Only if the item has a Project property
+        # Only update the Origin property if the item has a Project property
         if project:
-            origin = item.get('properties').get('Origin').get('select')
+            # Get UID of item's current Origin
+            current_origin_name = item.get('properties').get('Origin').get('select')
 
-            if origin:                
-                # Item has an Origin property
-                if (origin.get('name') != get_origin_name(project[0].get('id'))):
-                    # Update only if out-of-date
-                    update_origin_name(item.get('id'), get_origin_name(project[0].get('id')))
-            else:
-                # Item does not have an Origin property
-                update_origin_name(item.get('id'), get_origin_name(project[0].get('id')))
+            # Ask Notion for the true Origin name for the given Project (plaintext)
+            try:
+                true_origin_name = get_origin_name(project[0].get('id'))
+
+            except req.HTTPError as e:
+                logging.error(f"FETCH unsuccessful of Project {project[0].get('id')} (returned {e.response.status_code})")
+                continue
+
+            # If the item has no Origin property, or if the Origin property is out-of-date, update it
+            try:
+                if not current_origin_name:
+                    update_origin_name(item.get('id'), true_origin_name)
+                    logging.info(f"PATCH successful to page {item.get('id')} ('{current_origin_name}' -> '{true_origin_name}')")
+
+                elif (current_origin_name.get('name') != true_origin_name):
+                    update_origin_name(item.get('id'), true_origin_name)
+                    logging.info(f"PATCH successful to page {item.get('id')} ('{current_origin_name}' -> '{true_origin_name}')")
+
+                
+            except req.HTTPError as e:
+                logging.error(f"PATCH unsuccessful for page {item.get('id')} (returned {e.response.status_code} when setting Origin to '{true_origin_name}')")
+                continue
 
 if __name__ == '__main__':
-    logging.info('♥ notionsync by mhmatthall')
+    logging.info('♥ notionsync by mhmatthall === sync started')
 
     # Print imported variables
-    logging.info(f"targeting notion db {os.environ.get('NOTION_TARGET_DB_ID')}")
+    logging.debug(f"targeting notion db {os.environ.get('NOTION_TARGET_DB_ID')}")
     logging.debug(f"using api key {os.environ.get('NOTION_INTEGRATION_API_KEY')}")
 
-    while True:
-        # run every 30 seconds
-        try:
-            # Less go baybee
-            main()
-        except:
-            logging.exception('Fatal error:')
-        
-        sleep(30)
+    # Less go baybee
+    try:
+        main()
+        logging.info('♥ notionsync by mhmatthall === sync completed')
+    
+    except:
+        logging.exception('Fatal error:')
